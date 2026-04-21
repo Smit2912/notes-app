@@ -1,16 +1,18 @@
 import { serve } from 'https://deno.land/std/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js';
+import { corsHeaders, handleCors } from '../_shared/cors.ts';
 
 serve(async (req) => {
+  const corsResponse = handleCors(req);
+  if (corsResponse) return corsResponse;
+
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_ANON_KEY')!,
       {
         global: {
-          headers: {
-            Authorization: req.headers.get('Authorization')!,
-          },
+          headers: { Authorization: req.headers.get('Authorization')! },
         },
       }
     );
@@ -19,10 +21,10 @@ serve(async (req) => {
       data: { user },
       error: authError,
     } = await supabase.auth.getUser();
-
     if (!user || authError) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -32,26 +34,25 @@ serve(async (req) => {
     );
 
     const body = await req.json().catch(() => null);
-
     if (!body) {
       return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
         status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     const { note_id, email, role } = body;
-
     if (!note_id || !email || !role) {
       return new Response(
         JSON.stringify({ error: 'Missing note_id, email, or role' }),
         {
           status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-
     const { data: profile, error: userError } = await supabaseAdmin
       .from('profiles')
       .select('id')
@@ -61,6 +62,7 @@ serve(async (req) => {
     if (userError || !profile) {
       return new Response(JSON.stringify({ error: 'User not found' }), {
         status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -69,22 +71,20 @@ serve(async (req) => {
     if (!['viewer', 'editor'].includes(role)) {
       return new Response(JSON.stringify({ error: 'Invalid role' }), {
         status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // 🚫 Prevent self-collaboration
     if (user_id === user.id) {
       return new Response(
-        JSON.stringify({
-          error: 'Owner already has full access (no need to add)',
-        }),
+        JSON.stringify({ error: 'Owner already has full access' }),
         {
           status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
     }
 
-    // 🔍 Validate note ownership
     const { data: note, error: noteError } = await supabaseAdmin
       .from('notes')
       .select('id, owner_id')
@@ -94,6 +94,7 @@ serve(async (req) => {
     if (noteError || !note) {
       return new Response(JSON.stringify({ error: 'Note not found' }), {
         status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -102,11 +103,11 @@ serve(async (req) => {
         JSON.stringify({ error: 'Only the owner can add collaborators' }),
         {
           status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
     }
 
-    // 🚫 Prevent duplicate collaborators
     const { data: existing } = await supabaseAdmin
       .from('note_collaborators')
       .select('id')
@@ -119,11 +120,11 @@ serve(async (req) => {
         JSON.stringify({ error: 'User already a collaborator' }),
         {
           status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
       );
     }
 
-    // ✅ Insert collaborator
     const { data, error } = await supabaseAdmin
       .from('note_collaborators')
       .insert({ note_id, user_id, role })
@@ -133,16 +134,23 @@ serve(async (req) => {
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {
         status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    return new Response(JSON.stringify(data), { status: 200 });
+    return new Response(JSON.stringify(data), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   } catch (error) {
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : String(error),
       }),
-      { status: 500 }
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
     );
   }
 });
