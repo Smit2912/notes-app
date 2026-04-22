@@ -28,6 +28,11 @@ serve(async (req) => {
       });
     }
 
+    const admin = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+
     const body = await req.json().catch(() => null);
     if (!body) {
       return new Response(JSON.stringify({ error: 'Invalid JSON' }), {
@@ -47,9 +52,13 @@ serve(async (req) => {
       );
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await admin
       .from('notes')
-      .insert({ title, content })
+      .insert({
+        title,
+        content,
+        owner_id: user.id,
+      })
       .select()
       .single();
 

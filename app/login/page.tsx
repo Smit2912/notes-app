@@ -22,6 +22,9 @@ export default function LoginPage() {
       return;
     }
 
+    const { data } = await supabase.auth.getUser();
+    console.log(`User signed in successfully: ${data}`);
+
     router.push('/');
   };
 
@@ -37,6 +40,8 @@ export default function LoginPage() {
     }
 
     alert('Signup successful. Please login.');
+    const { data } = await supabase.auth.getUser();
+    console.log(`User signed up successfully: ${data}`);
   };
 
   return (

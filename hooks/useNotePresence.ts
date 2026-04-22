@@ -13,27 +13,19 @@ type PresenceUser = {
   email: string;
 };
 
-export const useNotePresence = (
-  noteId: string,
-  user: UserType | null
-) => {
-  const [onlineUsers, setOnlineUsers] = useState<
-    PresenceUser[]
-  >([]);
+export const useNotePresence = (noteId: string, user: UserType | null) => {
+  const [onlineUsers, setOnlineUsers] = useState<PresenceUser[]>([]);
 
   useEffect(() => {
     if (!noteId || !user) return;
 
-    const channel = supabase.channel(
-      `note-room-${noteId}`,
-      {
-        config: {
-          presence: {
-            key: user.id,
-          },
+    const channel = supabase.channel(`note-room-${noteId}`, {
+      config: {
+        presence: {
+          key: user.id,
         },
-      }
-    );
+      },
+    });
 
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState();
@@ -54,6 +46,11 @@ export const useNotePresence = (
           user_id: user.id,
           email: user.email || 'Unknown',
         });
+      }
+      if (status === 'CHANNEL_ERROR') {
+        console.error(
+          'Realtime failed. Check if RLS allows selecting these tables.'
+        );
       }
     });
 

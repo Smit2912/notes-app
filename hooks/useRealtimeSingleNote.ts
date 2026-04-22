@@ -5,16 +5,10 @@ import { supabase } from '@/lib/supabaseClient';
 
 type Props = {
   noteId: string;
-  onRemoteUpdate: (payload: {
-    content: string;
-    version: number;
-  }) => void;
+  onRemoteUpdate: (payload: { content: string; version: number }) => void;
 };
 
-export const useRealtimeSingleNote = ({
-  noteId,
-  onRemoteUpdate,
-}: Props) => {
+export const useRealtimeSingleNote = ({ noteId, onRemoteUpdate }: Props) => {
   useEffect(() => {
     if (!noteId) return;
 
@@ -35,7 +29,14 @@ export const useRealtimeSingleNote = ({
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Realtime Status:', status);
+        if (status === 'CHANNEL_ERROR') {
+          console.error(
+            'Realtime failed. Check if RLS allows selecting these tables.'
+          );
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);

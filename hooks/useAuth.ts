@@ -8,12 +8,13 @@ export const useAuth = () => {
 
   useEffect(() => {
     const init = async () => {
-      const { data } = await supabase.auth.getSession();
-
-      const session = data.session;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
       if (session?.access_token) {
         setAuthToken(session.access_token);
+        await supabase.realtime.setAuth(session.access_token);
       }
 
       setUser(session?.user ?? null);
@@ -22,19 +23,19 @@ export const useAuth = () => {
 
     init();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session?.access_token) {
-          setAuthToken(session.access_token); // ✅ direct, no extra call
-        }
-
-        setUser(session?.user ?? null);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session?.access_token) {
+        setAuthToken(session.access_token);
+        await supabase.realtime.setAuth(session.access_token);
       }
-    );
 
-    return () => {
-      listener.subscription.unsubscribe();
-    };
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   return { user, loading };

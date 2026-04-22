@@ -15,21 +15,15 @@ type TypingUser = {
   email: string;
 };
 
-export const usePresence = (
-  noteId: string | null,
-  user: any
-) => {
+export const usePresence = (noteId: string | null, user: any) => {
   const [onlineUsers, setOnlineUsers] = useState<PresenceUser[]>([]);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
 
   const channelRef = useRef<any>(null);
 
-  const localTypingTimeoutRef =
-    useRef<NodeJS.Timeout | null>(null);
+  const localTypingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const remoteTypingTimeoutsRef = useRef<
-    Record<string, NodeJS.Timeout>
-  >({});
+  const remoteTypingTimeoutsRef = useRef<Record<string, NodeJS.Timeout>>({});
 
   /**
    * -----------------------------
@@ -53,13 +47,9 @@ export const usePresence = (
         return;
       }
 
-      const oldTime = new Date(
-        existing.online_at || 0
-      ).getTime();
+      const oldTime = new Date(existing.online_at || 0).getTime();
 
-      const newTime = new Date(
-        meta.online_at || 0
-      ).getTime();
+      const newTime = new Date(meta.online_at || 0).getTime();
 
       if (newTime >= oldTime) {
         uniqueMap.set(meta.user_id, meta);
@@ -68,9 +58,7 @@ export const usePresence = (
 
     const users = Array.from(uniqueMap.values());
 
-    setOnlineUsers(
-      users.filter((u) => u.user_id !== user.id)
-    );
+    setOnlineUsers(users.filter((u) => u.user_id !== user.id));
   };
 
   /**
@@ -78,9 +66,7 @@ export const usePresence = (
    * Update my presence
    * -----------------------------
    */
-  const trackPresence = async (
-    payload: Partial<PresenceUser>
-  ) => {
+  const trackPresence = async (payload: Partial<PresenceUser>) => {
     if (!channelRef.current || !user) return;
 
     await channelRef.current.track({
@@ -113,18 +99,15 @@ export const usePresence = (
       clearTimeout(localTypingTimeoutRef.current);
     }
 
-    localTypingTimeoutRef.current = setTimeout(
-      async () => {
-        await channelRef.current.send({
-          type: 'broadcast',
-          event: 'stop_typing',
-          payload: {
-            user_id: user.id,
-          },
-        });
-      },
-      1200
-    );
+    localTypingTimeoutRef.current = setTimeout(async () => {
+      await channelRef.current.send({
+        type: 'broadcast',
+        event: 'stop_typing',
+        payload: {
+          user_id: user.id,
+        },
+      });
+    }, 1200);
   };
 
   /**
@@ -132,9 +115,7 @@ export const usePresence = (
    * Cursor update
    * -----------------------------
    */
-  const updateCursor = async (
-    cursor: number
-  ) => {
+  const updateCursor = async (cursor: number) => {
     await trackPresence({ cursor });
   };
 
@@ -146,133 +127,98 @@ export const usePresence = (
   useEffect(() => {
     if (!noteId || !user) return;
 
-    const channel = supabase.channel(
-      `presence-note-${noteId}`,
-      {
+    let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const setup = async () => {
+      // If there is a lingering channel from a previous noteId, remove it and
+      // wait a tick so Supabase server-side state settles before re-joining.
+      if (channelRef.current) {
+        await supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+        await new Promise((r) => setTimeout(r, 150));
+      }
+
+      if (cancelled) return;
+
+      channel = supabase.channel(`presence-note-${noteId}`, {
         config: {
           presence: {
             key: user.id,
           },
         },
-      }
-    );
-
-    channelRef.current = channel;
-
-    channel
-      /**
-       * Presence
-       */
-      .on(
-        'presence',
-        { event: 'sync' },
-        syncPresenceState
-      )
-      .on(
-        'presence',
-        { event: 'join' },
-        syncPresenceState
-      )
-      .on(
-        'presence',
-        { event: 'leave' },
-        syncPresenceState
-      )
-
-      /**
-       * Typing start
-       */
-      .on(
-        'broadcast',
-        { event: 'typing' },
-        ({ payload }: any) => {
-          if (
-            !payload ||
-            payload.user_id === user.id
-          )
-            return;
-
-          setTypingUsers((prev) => {
-            const exists = prev.find(
-              (u) =>
-                u.user_id === payload.user_id
-            );
-
-            if (exists) return prev;
-
-            return [
-              ...prev,
-              {
-                user_id: payload.user_id,
-                email: payload.email,
-              },
-            ];
-          });
-
-          if (
-            remoteTypingTimeoutsRef.current[
-              payload.user_id
-            ]
-          ) {
-            clearTimeout(
-              remoteTypingTimeoutsRef.current[
-                payload.user_id
-              ]
-            );
-          }
-
-          remoteTypingTimeoutsRef.current[
-            payload.user_id
-          ] = setTimeout(() => {
-            setTypingUsers((prev) =>
-              prev.filter(
-                (u) =>
-                  u.user_id !==
-                  payload.user_id
-              )
-            );
-          }, 1500);
-        }
-      )
-
-      /**
-       * Typing stop
-       */
-      .on(
-        'broadcast',
-        { event: 'stop_typing' },
-        ({ payload }: any) => {
-          if (!payload) return;
-
-          setTypingUsers((prev) =>
-            prev.filter(
-              (u) =>
-                u.user_id !== payload.user_id
-            )
-          );
-        }
-      )
-
-      .subscribe(async (status: string) => {
-        if (status === 'SUBSCRIBED') {
-          await trackPresence({
-            cursor: 0,
-          });
-        }
       });
 
+      channelRef.current = channel;
+
+      channel
+        /**
+         * Presence
+         */
+        .on('presence', { event: 'sync' }, syncPresenceState)
+        .on('presence', { event: 'join' }, syncPresenceState)
+        .on('presence', { event: 'leave' }, syncPresenceState)
+
+        /**
+         * Typing start
+         */
+        .on('broadcast', { event: 'typing' }, ({ payload }: any) => {
+          if (!payload || payload.user_id === user.id) return;
+
+          setTypingUsers((prev) => {
+            const exists = prev.find((u) => u.user_id === payload.user_id);
+            if (exists) return prev;
+            return [...prev, { user_id: payload.user_id, email: payload.email }];
+          });
+
+          if (remoteTypingTimeoutsRef.current[payload.user_id]) {
+            clearTimeout(remoteTypingTimeoutsRef.current[payload.user_id]);
+          }
+
+          remoteTypingTimeoutsRef.current[payload.user_id] = setTimeout(() => {
+            setTypingUsers((prev) =>
+              prev.filter((u) => u.user_id !== payload.user_id)
+            );
+          }, 1500);
+        })
+
+        /**
+         * Typing stop
+         */
+        .on('broadcast', { event: 'stop_typing' }, ({ payload }: any) => {
+          if (!payload) return;
+          setTypingUsers((prev) =>
+            prev.filter((u) => u.user_id !== payload.user_id)
+          );
+        })
+
+        .subscribe(async (status: string) => {
+          console.log(`[Presence ${noteId}] Status:`, status);
+          if (status === 'SUBSCRIBED') {
+            await trackPresence({ cursor: 0 });
+          }
+          if (status === 'CHANNEL_ERROR') {
+            console.error(
+              '[Presence] CHANNEL_ERROR — channel may still be closing server-side; will retry on next mount.'
+            );
+          }
+        });
+    };
+
+    setup();
+
     return () => {
+      cancelled = true;
+
       if (localTypingTimeoutRef.current) {
-        clearTimeout(
-          localTypingTimeoutRef.current
-        );
+        clearTimeout(localTypingTimeoutRef.current);
       }
+      Object.values(remoteTypingTimeoutsRef.current).forEach(clearTimeout);
 
-      Object.values(
-        remoteTypingTimeoutsRef.current
-      ).forEach(clearTimeout);
-
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel).catch(() => {});
+        channelRef.current = null;
+      }
     };
   }, [noteId, user?.id]);
 

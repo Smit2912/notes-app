@@ -16,22 +16,14 @@ import {
 import { useState } from 'react';
 
 import {
-  Button,
-  TextField,
   Container,
   Typography,
   Card,
   CardContent,
-  CardActions,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Snackbar,
   Alert,
 } from '@mui/material';
-import { Select, MenuItem, Chip, Skeleton } from '@mui/material';
-import Box from '@mui/material/Box';
+import { Skeleton } from '@mui/material';
 
 import { useRouter } from 'next/navigation';
 
@@ -43,15 +35,19 @@ import CreateNoteForm from '@/components/notes/CreateNoteForm';
 import NoteCard from '@/components/notes/NoteCard';
 import CollaboratorDialog from '@/components/notes/CollaboratorDialog';
 import EditNoteDialog from '@/components/notes/EditNoteDialog';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function Home() {
   // const { user } = useAuth();
   // useRealtimeNotes(user?.id);
 
-  useRealtimeNotes();
+  const queryClient = useQueryClient(); 
 
-  const { user } = useAuth();
+  
+  const { user, loading } = useAuth();
 
+  useRealtimeNotes(!loading ? user : null);
+  
   const router = useRouter();
 
   const { data, isLoading, error } = useGetNotes();
@@ -155,6 +151,12 @@ export default function Home() {
         onSuccess: () => {
           showToast('Collaborator added');
           setCollabEmail('');
+          // 🚀 MANUALLY trigger the notes refresh for the current user
+          queryClient.invalidateQueries({ queryKey: ['notes'] });
+          // Also refresh the dialog list
+          queryClient.invalidateQueries({
+            queryKey: ['collaborators', selectedNoteId],
+          });
         },
         onError: (err: any) =>
           showToast(err?.response?.data?.error || 'Failed', 'error'),

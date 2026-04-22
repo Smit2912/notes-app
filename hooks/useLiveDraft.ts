@@ -9,11 +9,7 @@ type Props = {
   onRemoteDraft: (content: string) => void;
 };
 
-export const useLiveDraft = ({
-  noteId,
-  user,
-  onRemoteDraft,
-}: Props) => {
+export const useLiveDraft = ({ noteId, user, onRemoteDraft }: Props) => {
   const channelRef = useRef<any>(null);
 
   const sendDraft = async (content: string) => {
@@ -37,17 +33,20 @@ export const useLiveDraft = ({
     channelRef.current = channel;
 
     channel
-      .on(
-        'broadcast',
-        { event: 'draft_update' },
-        ({ payload }: any) => {
-          if (!payload) return;
-          if (payload.user_id === user.id) return;
+      .on('broadcast', { event: 'draft_update' }, ({ payload }: any) => {
+        if (!payload) return;
+        if (payload.user_id === user.id) return;
 
-          onRemoteDraft(payload.content);
+        onRemoteDraft(payload.content);
+      })
+      .subscribe((status) => {
+        console.log('Realtime Status:', status);
+        if (status === 'CHANNEL_ERROR') {
+          console.error(
+            'Realtime failed. Check if RLS allows selecting these tables.'
+          );
         }
-      )
-      .subscribe();
+      });
 
     return () => {
       supabase.removeChannel(channel);
