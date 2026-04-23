@@ -7,7 +7,7 @@ export const useUpdateNoteContent = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (data: { id: string; content: string }) => {
+    mutationFn: async (data: { id: string; content: string; version?: number }) => {
       const res = await API.post('/update-note-content', data);
       return res.data;
     },

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
 type Props = {
@@ -9,6 +9,9 @@ type Props = {
 };
 
 export const useRealtimeSingleNote = ({ noteId, onRemoteUpdate }: Props) => {
+  const callbackRef = useRef(onRemoteUpdate);
+  callbackRef.current = onRemoteUpdate;
+
   useEffect(() => {
     if (!noteId) return;
 
@@ -23,7 +26,7 @@ export const useRealtimeSingleNote = ({ noteId, onRemoteUpdate }: Props) => {
           filter: `id=eq.${noteId}`,
         },
         (payload: any) => {
-          onRemoteUpdate({
+          callbackRef.current({
             content: payload.new?.content ?? '',
             version: payload.new?.version ?? 1,
           });
@@ -41,5 +44,5 @@ export const useRealtimeSingleNote = ({ noteId, onRemoteUpdate }: Props) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [noteId, onRemoteUpdate]);
+  }, [noteId]);
 };

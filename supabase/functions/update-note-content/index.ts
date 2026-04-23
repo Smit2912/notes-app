@@ -7,7 +7,7 @@ serve(async (req) => {
   if (corsResponse) return corsResponse;
 
   try {
-    const { id, content } = await req.json();
+    const { id, content, version } = await req.json();
     if (!id) {
       return new Response(JSON.stringify({ error: 'Note id required' }), {
         status: 400,
@@ -43,7 +43,7 @@ serve(async (req) => {
 
     const { data: note, error: noteError } = await admin
       .from('notes')
-      .select('id, owner_id, version, note_collaborators(user_id, role)')
+      .select('id, content, owner_id, version, note_collaborators(user_id, role)')
       .eq('id', id)
       .single();
 
@@ -65,6 +65,22 @@ serve(async (req) => {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // Version Check for Conflict Detection
+    if (version !== undefined && version !== note.version) {
+      return new Response(
+        JSON.stringify({
+          error: 'Conflict',
+          message: 'Stale version detected. Someone else might have updated this note.',
+          remoteContent: note.content,
+          remoteVersion: note.version,
+        }),
+        {
+          status: 409,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     const nextVersion = (note.version || 1) + 1;

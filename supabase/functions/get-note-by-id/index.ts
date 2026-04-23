@@ -43,7 +43,7 @@ serve(async (req) => {
 
     const { data: note, error } = await admin
       .from('notes')
-      .select('id, title, content, owner_id, note_collaborators(user_id, role)')
+      .select('id, title, content, owner_id, version, note_collaborators(user_id, role)')
       .eq('id', id)
       .single();
 
@@ -75,6 +75,7 @@ serve(async (req) => {
           title: note.title,
           content: note.content,
           owner_id: note.owner_id,
+          version: note.version,
           role,
         },
       }),

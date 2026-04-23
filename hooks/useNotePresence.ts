@@ -30,14 +30,21 @@ export const useNotePresence = (noteId: string, user: UserType | null) => {
     channel.on('presence', { event: 'sync' }, () => {
       const state = channel.presenceState();
 
-      const users = Object.values(state)
-        .flat()
-        .map((item: any) => ({
-          user_id: item.user_id,
-          email: item.email,
-        }));
+      // Deduplicate users by user_id to avoid showing the same user multiple times
+      // (e.g. across multiple tabs or heartbeats)
+      const uniqueMap = new Map<string, PresenceUser>();
 
-      setOnlineUsers(users);
+      Object.values(state)
+        .flat()
+        .forEach((item: any) => {
+          if (!item.user_id) return;
+          uniqueMap.set(item.user_id, {
+            user_id: item.user_id,
+            email: item.email || 'Unknown',
+          });
+        });
+
+      setOnlineUsers(Array.from(uniqueMap.values()));
     });
 
     channel.subscribe(async (status) => {
@@ -57,7 +64,7 @@ export const useNotePresence = (noteId: string, user: UserType | null) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [noteId, user]);
+  }, [noteId, user?.id]); // Use user.id to avoid unnecessary re-subscriptions
 
   return { onlineUsers };
 };

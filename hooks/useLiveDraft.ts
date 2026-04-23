@@ -7,10 +7,16 @@ type Props = {
   noteId: string;
   user: any;
   onRemoteDraft: (content: string) => void;
+  onResolution?: (version: number) => void;
 };
 
-export const useLiveDraft = ({ noteId, user, onRemoteDraft }: Props) => {
+export const useLiveDraft = ({ noteId, user, onRemoteDraft, onResolution }: Props) => {
   const channelRef = useRef<any>(null);
+  const callbackRef = useRef(onRemoteDraft);
+  callbackRef.current = onRemoteDraft;
+
+  const resolutionCallbackRef = useRef(onResolution);
+  resolutionCallbackRef.current = onResolution;
 
   const sendDraft = async (content: string) => {
     if (!channelRef.current || !user) return;
@@ -21,6 +27,19 @@ export const useLiveDraft = ({ noteId, user, onRemoteDraft }: Props) => {
       payload: {
         user_id: user.id,
         content,
+      },
+    });
+  };
+
+  const sendResolution = async (version: number) => {
+    if (!channelRef.current || !user) return;
+
+    await channelRef.current.send({
+      type: 'broadcast',
+      event: 'conflict_resolved',
+      payload: {
+        user_id: user.id,
+        version,
       },
     });
   };
@@ -37,7 +56,13 @@ export const useLiveDraft = ({ noteId, user, onRemoteDraft }: Props) => {
         if (!payload) return;
         if (payload.user_id === user.id) return;
 
-        onRemoteDraft(payload.content);
+        callbackRef.current(payload.content);
+      })
+      .on('broadcast', { event: 'conflict_resolved' }, ({ payload }: any) => {
+        if (!payload || payload.user_id === user.id) return;
+        if (resolutionCallbackRef.current) {
+          resolutionCallbackRef.current(payload.version);
+        }
       })
       .subscribe((status) => {
         console.log('Realtime Status:', status);
@@ -51,7 +76,7 @@ export const useLiveDraft = ({ noteId, user, onRemoteDraft }: Props) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [noteId, user?.id, onRemoteDraft]);
+  }, [noteId, user?.id]);
 
-  return { sendDraft };
+  return { sendDraft, sendResolution };
 };
