@@ -7,8 +7,8 @@ import {
   TextField,
   Chip,
   Box,
-  CircularProgress,
   Button,
+  CircularProgress,
 } from '@mui/material';
 
 import { useEffect, useRef, useState } from 'react';
@@ -457,8 +457,6 @@ export default function NotePage() {
           localTyping.current = false;
           protectLocalDraft.current = true;
 
-          setPendingRemote(null);
-
           try {
             const res = await updateContent.mutateAsync({
               id,
@@ -469,6 +467,8 @@ export default function NotePage() {
             lastSaved.current = mine;
             currentVersion.current = res.version;
             setStatus('Saved');
+            protectLocalDraft.current = false;
+            setPendingRemote(null);
 
             // Signal to others that this was a resolution to avoid conflict loops
             sendResolution(res.version);
@@ -524,7 +524,6 @@ export default function NotePage() {
           protectLocalDraft.current = true;
           skipNextAutosave.current = true;
 
-          setPendingRemote(null);
           setContent(merged);
 
           try {
@@ -537,6 +536,8 @@ export default function NotePage() {
             lastSaved.current = merged;
             currentVersion.current = res.version;
             setStatus('Merged & Saved');
+            protectLocalDraft.current = false;
+            setPendingRemote(null);
 
             // Signal to others that this was a resolution to avoid conflict loops
             sendResolution(res.version);
