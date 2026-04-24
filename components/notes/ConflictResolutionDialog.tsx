@@ -41,6 +41,17 @@ export default function ConflictResolutionDialog({
         Remote changes detected
       </Typography>
 
+      <Typography
+        sx={{
+          fontWeight: 'medium',
+          color: 'text.secondary',
+        }}
+        variant='subtitle2'
+        gutterBottom
+      >
+        Editing paused until conflict is resolved
+      </Typography>
+
       <Typography variant='body2' sx={{ mb: 1 }}>
         Your Draft
       </Typography>

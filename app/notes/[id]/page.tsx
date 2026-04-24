@@ -141,6 +141,31 @@ export default function NotePage() {
     return res;
   };
 
+  const refreshConflictFrom409 = (
+    err: any,
+    localDraft: string
+  ) => {
+    if (err.response?.status !== 409) {
+      throw err;
+    }
+
+    const {
+      remoteContent,
+      remoteVersion,
+    } = err.response.data;
+
+    setPendingRemote({
+      local: localDraft,
+      remote: remoteContent,
+      remoteVersion,
+    });
+
+    protectDraftRef.current = false;
+    localTypingRef.current = false;
+
+    setStatus('Conflict updated');
+  };
+
   /** -----------------------------
    * Draft channel
    * ----------------------------- */
@@ -149,27 +174,14 @@ export default function NotePage() {
       noteId: id,
       user,
 
-      onRemoteDraft: (incoming) => {
+      onRemoteDraft: () => {
         if (!canEdit) return;
         if (pendingRemote) return;
-        if (suppressIncomingRef.current)
-          return;
-        if (localTypingRef.current)
-          return;
+        if (suppressIncomingRef.current) return;
 
-        if (
-          incoming === contentRef.current
-        )
-          return;
-
-        setContent(incoming);
-        contentRef.current = incoming;
-        /**
-         * Remote draft is NOT local edit.
-         * Keep local clean state aligned.
-         */
-        savedRef.current = incoming;
-        setStatus('Live synced');
+        // Do NOT mutate editor content.
+        // Draft channel only signals live typing presence.
+        setStatus('Collaborator typing...');
       },
 
       onResolution: (version) => {
@@ -224,6 +236,11 @@ export default function NotePage() {
         versionRef.current =
           payload.version;
 
+        return;
+      }
+
+      /** while conflict dialog open -> freeze remote updates */
+      if (pendingRemote) {
         return;
       }
 
@@ -517,101 +534,87 @@ export default function NotePage() {
           ''
         }
 
-        onApplyRemote={() => {
-          if (
-            !pendingRemote
-          )
-            return;
+        onApplyRemote={async () => {
+          if (!pendingRemote) return;
 
-          setContent(
-            pendingRemote.remote
-          );
+          try {
+            const latest = await queryClient.refetchQueries({
+              queryKey: ['note', id],
+            });
 
-          contentRef.current =
-            pendingRemote.remote;
+            const note = queryClient.getQueryData<any>(['note', id]);
 
-          savedRef.current =
-            pendingRemote.remote;
+            if (!note) return;
 
-          versionRef.current =
-            pendingRemote.remoteVersion;
+            setContent(note.content);
+            contentRef.current = note.content;
 
-          localTypingRef.current =
-            false;
+            savedRef.current = note.content;
+            versionRef.current = note.version;
 
-          protectDraftRef.current =
-            false;
+            localTypingRef.current = false;
+            protectDraftRef.current = false;
 
-          setPendingRemote(
-            null
-          );
+            setPendingRemote(null);
+            setStatus('Synced');
 
-          setStatus(
-            'Synced'
-          );
+          } catch {
+            setStatus('Failed');
+          }
         }}
 
         onKeepMine={async () => {
-          if (
-            !pendingRemote
-          )
-            return;
+          if (!pendingRemote) return;
 
-          protectDraftRef.current =
-            true;
+          protectDraftRef.current = true;
 
-          await saveNote(
-            pendingRemote.local,
-            pendingRemote.remoteVersion
-          );
+          try {
+            await saveNote(
+              pendingRemote.local,
+              pendingRemote.remoteVersion
+            );
 
-          sendResolution(
-            versionRef.current
-          );
+            sendResolution(versionRef.current);
 
-          setPendingRemote(
-            null
-          );
+            setPendingRemote(null);
+            setStatus('Saved');
 
-          setStatus(
-            'Saved'
-          );
+          } catch (err) {
+            refreshConflictFrom409(
+              err,
+              pendingRemote.local
+            );
+          }
         }}
 
         onMergeBoth={async () => {
-          if (
-            !pendingRemote
-          )
-            return;
+          if (!pendingRemote) return;
 
-          const merged = `${pendingRemote.local}\n\n${pendingRemote.remote}`;
+          const merged =
+            `${pendingRemote.local}\n\n${pendingRemote.remote}`;
 
-          setContent(
-            merged
-          );
+          setContent(merged);
+          contentRef.current = merged;
 
-          contentRef.current =
-            merged;
+          protectDraftRef.current = true;
 
-          protectDraftRef.current =
-            true;
+          try {
+            await saveNote(
+              merged,
+              pendingRemote.remoteVersion
+            );
 
-          await saveNote(
-            merged,
-            pendingRemote.remoteVersion
-          );
+            sendResolution(versionRef.current);
 
-          sendResolution(
-            versionRef.current
-          );
+            setPendingRemote(null);
+            setStatus('Merged & Saved');
 
-          setPendingRemote(
-            null
-          );
-
-          setStatus(
-            'Merged & Saved'
-          );
+          } catch (err) {
+            refreshConflictFrom409(
+              err,
+              merged
+            );
+          }
         }}
       />
 
@@ -653,7 +656,7 @@ export default function NotePage() {
         multiline
         minRows={18}
         value={content}
-        disabled={!canEdit}
+        disabled={!canEdit || !!pendingRemote}
         onChange={(e) => {
           const value =
             e.target.value;
