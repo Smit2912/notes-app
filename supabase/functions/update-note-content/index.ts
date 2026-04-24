@@ -91,6 +91,7 @@ serve(async (req) => {
         content,
         version: nextVersion,
         updated_at: new Date().toISOString(),
+        updated_by: user.id,
       })
       .eq('id', id);
 

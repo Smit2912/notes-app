@@ -37,10 +37,14 @@ export default function NotePage() {
   );
 
   const updateContent = useUpdateNoteContent();
+  const queryClient = useQueryClient();
 
   const { onlineUsers } = useNotePresence(id, user);
   const { typingUsers, triggerTyping } = usePresence(id, user);
 
+  /** -----------------------------
+   * UI State
+   * ----------------------------- */
   const [content, setContent] = useState('');
   const [status, setStatus] = useState('Saved');
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -48,253 +52,313 @@ export default function NotePage() {
   const [pendingRemote, setPendingRemote] = useState<{
     local: string;
     remote: string;
-    remoteVersion?: number;
+    remoteVersion: number;
   } | null>(null);
 
-  const hydrated = useRef(false);
-  const lastSaved = useRef('');
-  const currentVersion = useRef(1);
+  /** -----------------------------
+   * Stable refs (single source)
+   * ----------------------------- */
+  const hydratedRef = useRef(false);
 
-  const localTyping = useRef(false);
-  const typingTimer = useRef<any>(null);
-  const broadcastTimer = useRef<any>(null);
+  const contentRef = useRef('');
+  const savedRef = useRef('');
+  const versionRef = useRef(1);
 
-  const protectLocalDraft = useRef(false);
-  const skipNextAutosave = useRef(false);
+  const localTypingRef = useRef(false);
+  const protectDraftRef = useRef(false);
+  const suppressIncomingRef = useRef(false);
 
-  const liveUpdateReceived = useRef(false);
-  const lastRemoteResolutionVersion = useRef<number | null>(null);
-  const queryClient = useQueryClient();
-
-  /**
-   * Prevent conflict loop
-   */
-  const suppressIncomingDrafts = useRef(false);
+  const typingTimerRef = useRef<any>(null);
+  const draftTimerRef = useRef<any>(null);
 
   const canEdit =
     data?.role === 'owner' ||
     data?.role === 'editor';
 
-  /**
-   * Initial hydrate & Cache Sync
-   */
+  /** keep ref synced */
+  useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
+
+  /** -----------------------------
+   * Initial hydrate + passive sync
+   * No popup logic here
+   * ----------------------------- */
   useEffect(() => {
     if (!data) return;
 
     const serverContent = data.content || '';
     const serverVersion = data.version || 1;
 
-    // First time loading (Hydration)
-    if (!hydrated.current) {
-      hydrated.current = true;
+    if (!hydratedRef.current) {
+      hydratedRef.current = true;
 
-      // If we already got a live update (broadcast or postgres),
-      // we trust its content more than a potentially stale initial cache hit.
-      if (!liveUpdateReceived.current) {
-        setContent(serverContent);
-      }
+      setContent(serverContent);
+      contentRef.current = serverContent;
 
-      lastSaved.current = serverContent;
-      currentVersion.current = serverVersion;
+      savedRef.current = serverContent;
+      versionRef.current = serverVersion;
       return;
     }
 
-    // Subsequent updates from server (e.g. cache refetch)
-    // Only overwrite if it's actually NEWER than our current version
-    if (serverVersion > currentVersion.current) {
-      /**
-       * If local busy -> popup conflict resolution (Only for Editors)
-       */
-      if (canEdit && (localTyping.current || protectLocalDraft.current || pendingRemote)) {
-        if (serverContent !== content && !content.startsWith(serverContent)) {
-          setPendingRemote({
-            local: content,
-            remote: serverContent,
-            remoteVersion: serverVersion,
-          });
-        }
-        return;
-      }
-
-      /**
-       * Safe to sync
-       */
+    /** passive sync only */
+    if (
+      serverVersion > versionRef.current &&
+      !localTypingRef.current &&
+      !protectDraftRef.current &&
+      !pendingRemote
+    ) {
       setContent(serverContent);
-      lastSaved.current = serverContent;
-      currentVersion.current = serverVersion;
-      setStatus('Updated from server');
+      contentRef.current = serverContent;
+
+      savedRef.current = serverContent;
+      versionRef.current = serverVersion;
+
+      setStatus('Synced');
     }
-  }, [data, content]);
+  }, [data, pendingRemote]);
 
-  /**
-   * Draft Realtime
-   */
-  const { sendDraft, sendResolution } = useLiveDraft({
-    noteId: id,
-    user,
-
-    onResolution: (version) => {
-      lastRemoteResolutionVersion.current = version;
-      
-      // If we already have a pending resolution dialog for this version, 
-      // automatically close it and accept the remote version.
-      if (pendingRemote && (pendingRemote.remoteVersion === version || currentVersion.current + 1 === version)) {
-        setPendingRemote(null);
-        setContent(pendingRemote.remote);
-        lastSaved.current = pendingRemote.remote;
-        currentVersion.current = version;
-        setStatus('Conflict resolved by other user');
-        protectLocalDraft.current = false;
-      }
-    },
-
-    onRemoteDraft: (incoming) => {
-      liveUpdateReceived.current = true;
-      /**
-       * Ignore temporary stale loop traffic
-       */
-      if (suppressIncomingDrafts.current) {
-        return;
-      }
-
-      /**
-       * Ignore identical
-       */
-      if (incoming === content) {
-        return;
-      }
-
-      /**
-       * If local busy -> ignore draft to avoid overwriting local work.
-       * We wait for the actual database update to trigger a real conflict resolution.
-       */
-      if (canEdit && (localTyping.current || protectLocalDraft.current || pendingRemote)) {
-        return;
-      }
-
-      /**
-       * Soft sync
-       */
-      setContent(incoming);
-      setStatus('Live synced');
-    },
-  });
-
-  /**
-   * Database Realtime (Source of Truth)
-   */
-  useRealtimeSingleNote({
-    noteId: id,
-    onRemoteUpdate: (payload) => {
-      liveUpdateReceived.current = true;
-
-      // Sync React Query cache so other parts of the UI stay updated
-      queryClient.setQueryData(['note', id], (old: any) => {
-        if (!old) return old;
-        return {
-          ...old,
-          content: payload.content,
-          version: payload.version,
-        };
+  /** -----------------------------
+   * Save helper
+   * ----------------------------- */
+  const saveNote = async (
+    nextContent: string,
+    version: number
+  ) => {
+    const res =
+      await updateContent.mutateAsync({
+        id,
+        content: nextContent,
+        version,
       });
 
-      if (suppressIncomingDrafts.current) return;
+    savedRef.current = nextContent;
+    versionRef.current = res.version;
 
-      // Ignore if it's our own update (already handled by mutation response) or older
-      if (payload.version <= currentVersion.current) {
+    localTypingRef.current = false;
+    protectDraftRef.current = false;
+
+    return res;
+  };
+
+  /** -----------------------------
+   * Draft channel
+   * ----------------------------- */
+  const { sendDraft, sendResolution } =
+    useLiveDraft({
+      noteId: id,
+      user,
+
+      onRemoteDraft: (incoming) => {
+        if (!canEdit) return;
+        if (pendingRemote) return;
+        if (suppressIncomingRef.current)
+          return;
+        if (localTypingRef.current)
+          return;
+
+        if (
+          incoming === contentRef.current
+        )
+          return;
+
+        setContent(incoming);
+        contentRef.current = incoming;
+        /**
+         * Remote draft is NOT local edit.
+         * Keep local clean state aligned.
+         */
+        savedRef.current = incoming;
+        setStatus('Live synced');
+      },
+
+      onResolution: (version) => {
+        if (
+          pendingRemote &&
+          pendingRemote.remoteVersion ===
+          version
+        ) {
+          setContent(
+            pendingRemote.remote
+          );
+
+          contentRef.current =
+            pendingRemote.remote;
+
+          savedRef.current =
+            pendingRemote.remote;
+
+          versionRef.current =
+            version;
+
+          localTypingRef.current =
+            false;
+
+          protectDraftRef.current =
+            false;
+
+          setPendingRemote(null);
+          setStatus(
+            'Resolved by collaborator'
+          );
+        }
+      },
+    });
+
+  /** -----------------------------
+   * Database realtime
+   * Only place popup happens
+   * ----------------------------- */
+  useRealtimeSingleNote({
+    noteId: id,
+
+    onRemoteUpdate: (payload) => {
+      /** own save */
+      if (
+        payload.updated_by ===
+        user?.id
+      ) {
+        savedRef.current =
+          payload.content;
+
+        versionRef.current =
+          payload.version;
+
         return;
       }
 
-      // If local busy -> trigger conflict resolution
-      if (canEdit && (localTyping.current || protectLocalDraft.current || pendingRemote)) {
-        // If this version was signaled as a resolution, accept it and skip the prompt
-        if (payload.version === lastRemoteResolutionVersion.current) {
-          setContent(payload.content);
-          lastSaved.current = payload.content;
-          currentVersion.current = payload.version;
-          setStatus('Conflict resolved by other user');
-          protectLocalDraft.current = false;
-          return;
-        }
-
-        // Ignore if the incoming content is what we are currently typing (prefix) or identical
-        if (content.startsWith(payload.content) || payload.content === content) {
-          return;
-        }
-
-        setPendingRemote({
-          local: content,
-          remote: payload.content,
-          remoteVersion: payload.version,
-        });
+      /** stale */
+      if (
+        payload.version <=
+        versionRef.current
+      ) {
         return;
       }
 
-      // Safe to sync
+      queryClient.setQueryData(
+        ['note', id],
+        (old: any) => {
+          if (!old) return old;
+
+          return {
+            ...old,
+            content:
+              payload.content,
+            version:
+              payload.version,
+          };
+        }
+      );
+
+      /** viewer mode */
+      if (!canEdit) {
+        setContent(
+          payload.content
+        );
+
+        contentRef.current =
+          payload.content;
+
+        savedRef.current =
+          payload.content;
+
+        versionRef.current =
+          payload.version;
+
+        setStatus('Synced');
+        return;
+      }
+
+      /** dirty local => popup */
+      /** user truly has unsaved local changes */
+      const hasUnsavedChanges =
+        contentRef.current !== savedRef.current;
+
+      /** dirty local => popup only if needed */
+      if (
+        hasUnsavedChanges ||
+        localTypingRef.current ||
+        protectDraftRef.current
+      ) {
+        if (
+          payload.content !== contentRef.current
+        ) {
+          setPendingRemote({
+            local: contentRef.current,
+            remote: payload.content,
+            remoteVersion: payload.version,
+          });
+        }
+
+        return;
+      }
+
+      /** clean local => sync */
       setContent(payload.content);
-      lastSaved.current = payload.content;
-      currentVersion.current = payload.version;
+
+      contentRef.current =
+        payload.content;
+
+      savedRef.current =
+        payload.content;
+
+      versionRef.current =
+        payload.version;
+
       setStatus('Synced');
     },
   });
 
-  const handleSaveError = (err: any) => {
-    if (err.response?.status === 409) {
-      const { remoteContent, remoteVersion } = err.response.data;
-      setPendingRemote({
-        local: content,
-        remote: remoteContent,
-        remoteVersion: remoteVersion,
-      });
-      return true;
-    }
-
-    if (err.response?.status === 403) {
-      setStatus('Access Revoked');
-      alert('Your access to this note has been revoked. Your changes cannot be saved.');
-      return true;
-    }
-
-    return false;
-  };
-
-  /**
+  /** -----------------------------
    * Autosave
-   */
+   * ----------------------------- */
   useEffect(() => {
-    if (!hydrated.current) return;
+    if (!hydratedRef.current)
+      return;
     if (!canEdit) return;
     if (pendingRemote) return;
 
-    if (content === lastSaved.current)
+    if (
+      content ===
+      savedRef.current
+    )
       return;
-
-    if (skipNextAutosave.current) {
-      skipNextAutosave.current =
-        false;
-      return;
-    }
 
     const timer = setTimeout(
       async () => {
         try {
-          const res = await updateContent.mutateAsync({
-            id,
-            content,
-            version: currentVersion.current,
-          });
+          await saveNote(
+            contentRef.current,
+            versionRef.current
+          );
 
-          lastSaved.current = content;
-          currentVersion.current = res.version;
-          protectLocalDraft.current = false;
           setStatus('Saved');
         } catch (err: any) {
-          if (!handleSaveError(err)) {
-            setStatus('Failed');
+          if (
+            err.response?.status ===
+            409
+          ) {
+            const {
+              remoteContent,
+              remoteVersion,
+            } =
+              err.response.data;
+
+            setPendingRemote({
+              local:
+                contentRef.current,
+              remote:
+                remoteContent,
+              remoteVersion,
+            });
+          } else {
+            setStatus(
+              'Failed'
+            );
           }
         }
       },
-      800
+      1000
     );
 
     return () =>
@@ -302,28 +366,12 @@ export default function NotePage() {
   }, [
     content,
     canEdit,
-    id,
-    updateContent,
     pendingRemote,
   ]);
 
-  /**
-   * Utility
-   */
-  const muteDraftsTemporarily =
-    () => {
-      suppressIncomingDrafts.current =
-        true;
-
-      setTimeout(() => {
-        suppressIncomingDrafts.current =
-          false;
-      }, 2000);
-    };
-
-  /**
+  /** -----------------------------
    * Loading
-   */
+   * ----------------------------- */
   if (authLoading || isLoading) {
     return (
       <Container sx={{ mt: 5 }}>
@@ -340,9 +388,12 @@ export default function NotePage() {
     );
   }
 
+  /** -----------------------------
+   * Render
+   * ----------------------------- */
   return (
     <Container
-      maxWidth='md'
+      maxWidth="md"
       sx={{ mt: 5 }}
     >
       <Box
@@ -350,39 +401,50 @@ export default function NotePage() {
           display: 'flex',
           justifyContent:
             'space-between',
-          alignItems: 'flex-start',
+          alignItems:
+            'flex-start',
           gap: 2,
           mb: 3,
         }}
       >
         <Box>
-          <Typography variant='h4'>
+          <Typography variant="h4">
             {data.title}
           </Typography>
 
           <Typography
-            variant='body2'
+            variant="body2"
             sx={{ mt: 1 }}
           >
-            {onlineUsers.length} online
+            {
+              onlineUsers.length
+            }{' '}
+            online
           </Typography>
 
           <Box
             sx={{
               display: 'flex',
               gap: 1,
-              flexWrap: 'wrap',
+              flexWrap:
+                'wrap',
               mt: 1,
             }}
           >
-            {onlineUsers.map((u) => (
-              <Chip
-                key={u.user_id}
-                label={u.email}
-                color='success'
-                size='small'
-              />
-            ))}
+            {onlineUsers.map(
+              (u) => (
+                <Chip
+                  key={
+                    u.user_id
+                  }
+                  label={
+                    u.email
+                  }
+                  size="small"
+                  color="success"
+                />
+              )
+            )}
           </Box>
         </Box>
 
@@ -390,14 +452,17 @@ export default function NotePage() {
           sx={{
             display: 'flex',
             gap: 1,
-            alignItems: 'center',
+            alignItems:
+              'center',
           }}
         >
           <Button
-            variant='outlined'
-            size='small'
+            variant="outlined"
+            size="small"
             onClick={() =>
-              setHistoryOpen(true)
+              setHistoryOpen(
+                true
+              )
             }
           >
             History
@@ -406,174 +471,180 @@ export default function NotePage() {
           <Chip
             label={data.role.toUpperCase()}
             color={
-              data.role === 'owner'
+              data.role ===
+                'owner'
                 ? 'primary'
                 : data.role ===
                   'editor'
-                ? 'warning'
-                : 'default'
+                  ? 'warning'
+                  : 'default'
             }
           />
         </Box>
       </Box>
 
       <Typography
-        variant='body2'
+        variant="body2"
         sx={{ mb: 1 }}
       >
         {status}
       </Typography>
 
-      {typingUsers.length > 0 && (
-        <Typography
-          variant='body2'
-          color='primary'
-          sx={{ mb: 1 }}
-        >
-          {typingUsers.length === 1
-            ? `${typingUsers[0].email} is typing...`
-            : `${typingUsers.length} people are typing...`}
-        </Typography>
-      )}
+      {typingUsers.length >
+        0 && (
+          <Typography
+            variant="body2"
+            color="primary"
+            sx={{ mb: 1 }}
+          >
+            {typingUsers.length ===
+              1
+              ? `${typingUsers[0].email} is typing...`
+              : `${typingUsers.length} people are typing...`}
+          </Typography>
+        )}
 
       <ConflictResolutionDialog
-        open={!!pendingRemote}
+        open={
+          !!pendingRemote
+        }
         localContent={
-          pendingRemote?.local || ''
+          pendingRemote?.local ||
+          ''
         }
         remoteContent={
-          pendingRemote?.remote || ''
+          pendingRemote?.remote ||
+          ''
         }
 
-        /**
-         * KEEP MINE
-         */
+        onApplyRemote={() => {
+          if (
+            !pendingRemote
+          )
+            return;
+
+          setContent(
+            pendingRemote.remote
+          );
+
+          contentRef.current =
+            pendingRemote.remote;
+
+          savedRef.current =
+            pendingRemote.remote;
+
+          versionRef.current =
+            pendingRemote.remoteVersion;
+
+          localTypingRef.current =
+            false;
+
+          protectDraftRef.current =
+            false;
+
+          setPendingRemote(
+            null
+          );
+
+          setStatus(
+            'Synced'
+          );
+        }}
+
         onKeepMine={async () => {
-          const mine = content;
-          const versionToOverwrite = pendingRemote?.remoteVersion || currentVersion.current;
+          if (
+            !pendingRemote
+          )
+            return;
 
-          muteDraftsTemporarily();
+          protectDraftRef.current =
+            true;
 
-          localTyping.current = false;
-          protectLocalDraft.current = true;
+          await saveNote(
+            pendingRemote.local,
+            pendingRemote.remoteVersion
+          );
 
-          try {
-            const res = await updateContent.mutateAsync({
-              id,
-              content: mine,
-              version: versionToOverwrite,
-            });
+          sendResolution(
+            versionRef.current
+          );
 
-            lastSaved.current = mine;
-            currentVersion.current = res.version;
-            setStatus('Saved');
-            protectLocalDraft.current = false;
-            setPendingRemote(null);
+          setPendingRemote(
+            null
+          );
 
-            // Signal to others that this was a resolution to avoid conflict loops
-            sendResolution(res.version);
-          } catch (err: any) {
-            if (!handleSaveError(err)) {
-              setStatus('Failed');
-            }
-          }
+          setStatus(
+            'Saved'
+          );
         }}
 
-        /**
-         * APPLY REMOTE
-         */
-        onApplyRemote={async () => {
-          if (!pendingRemote) return;
-
-          const remote = pendingRemote.remote;
-          const remoteVersion = pendingRemote.remoteVersion;
-
-          muteDraftsTemporarily();
-
-          localTyping.current = false;
-          protectLocalDraft.current = false;
-          skipNextAutosave.current = true;
-
-          setPendingRemote(null);
-          setContent(remote);
-
-          // Update local metadata to match server
-          lastSaved.current = remote;
-          if (remoteVersion) {
-            currentVersion.current = remoteVersion;
-          }
-          setStatus('Synced');
-        }}
-
-        /**
-         * MERGE BOTH
-         */
         onMergeBoth={async () => {
-          if (!pendingRemote) return;
+          if (
+            !pendingRemote
+          )
+            return;
 
-          const local = pendingRemote.local.trim();
-          const remote = pendingRemote.remote.trim();
-          const versionToOverwrite = pendingRemote.remoteVersion || currentVersion.current;
+          const merged = `${pendingRemote.local}\n\n${pendingRemote.remote}`;
 
-          const merged =
-            local && remote ? `${local}\n\n${remote}` : local || remote;
+          setContent(
+            merged
+          );
 
-          muteDraftsTemporarily();
+          contentRef.current =
+            merged;
 
-          localTyping.current = false;
-          protectLocalDraft.current = true;
-          skipNextAutosave.current = true;
+          protectDraftRef.current =
+            true;
 
-          setContent(merged);
+          await saveNote(
+            merged,
+            pendingRemote.remoteVersion
+          );
 
-          try {
-            const res = await updateContent.mutateAsync({
-              id,
-              content: merged,
-              version: versionToOverwrite,
-            });
+          sendResolution(
+            versionRef.current
+          );
 
-            lastSaved.current = merged;
-            currentVersion.current = res.version;
-            setStatus('Merged & Saved');
-            protectLocalDraft.current = false;
-            setPendingRemote(null);
+          setPendingRemote(
+            null
+          );
 
-            // Signal to others that this was a resolution to avoid conflict loops
-            sendResolution(res.version);
-          } catch (err: any) {
-            if (!handleSaveError(err)) {
-              setStatus('Failed');
-            }
-          }
+          setStatus(
+            'Merged & Saved'
+          );
         }}
       />
 
       <HistoryDrawer
         open={historyOpen}
         noteId={id}
-        onClose={() => setHistoryOpen(false)}
-        onRestore={async (versionContent: string) => {
-          muteDraftsTemporarily();
-          skipNextAutosave.current = true;
-          setHistoryOpen(false);
-          setContent(versionContent);
+        onClose={() =>
+          setHistoryOpen(
+            false
+          )
+        }
+        onRestore={async (
+          value
+        ) => {
+          setHistoryOpen(
+            false
+          );
 
-          try {
-            const res = await updateContent.mutateAsync({
-              id,
-              content: versionContent,
-              version: currentVersion.current,
-            });
+          setContent(
+            value
+          );
 
-            lastSaved.current = versionContent;
-            currentVersion.current = res.version;
-            setStatus('Version restored');
-          } catch (err: any) {
-            if (!handleSaveError(err)) {
-              setStatus('Failed');
-            }
-          }
+          contentRef.current =
+            value;
+
+          await saveNote(
+            value,
+            versionRef.current
+          );
+
+          setStatus(
+            'Version restored'
+          );
         }}
       />
 
@@ -587,36 +658,56 @@ export default function NotePage() {
           const value =
             e.target.value;
 
-          setContent(value);
-          setStatus('Typing...');
+          setContent(
+            value
+          );
 
-          localTyping.current = true;
+          contentRef.current =
+            value;
+
+          setStatus(
+            'Typing...'
+          );
+
+          localTypingRef.current =
+            true;
 
           if (
-            typingTimer.current
+            typingTimerRef.current
           ) {
             clearTimeout(
-              typingTimer.current
+              typingTimerRef.current
             );
           }
 
-          typingTimer.current =
-            setTimeout(() => {
-              localTyping.current =
-                false;
-            }, 2000);
+          typingTimerRef.current =
+            setTimeout(
+              () => {
+                localTypingRef.current =
+                  false;
+              },
+              1200
+            );
 
           triggerTyping();
 
-          /**
-           * Throttle draft broadcasts to 50ms to avoid network congestion
-           */
-          if (broadcastTimer.current) clearTimeout(broadcastTimer.current);
-          broadcastTimer.current = setTimeout(() => {
-            if (!pendingRemote) {
-              sendDraft(value);
-            }
-          }, 50);
+          if (
+            draftTimerRef.current
+          ) {
+            clearTimeout(
+              draftTimerRef.current
+            );
+          }
+
+          draftTimerRef.current =
+            setTimeout(
+              () => {
+                sendDraft(
+                  value
+                );
+              },
+              60
+            );
         }}
       />
     </Container>

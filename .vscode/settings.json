@@ -19,7 +19,7 @@
     "net"
   ],
   "[typescript]": {
-    "editor.defaultFormatter": "svipas.prettier-plus"
+    "editor.defaultFormatter": "vscode.typescript-language-features"
   },
   "nuxt.isNuxtApp": false
 }
