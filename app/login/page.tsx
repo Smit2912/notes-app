@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { TextField, Button, Container, Typography, Box } from '@mui/material';
+import { TextField, Button, Container, Typography, Box, Snackbar, Alert } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -14,6 +14,16 @@ export default function LoginPage() {
   const [signUpLoading, setSignUpLoading] = useState(false);
   const [signInLoading, setSignInLoading] = useState(false);
 
+  const [toast, setToast] = useState({
+    open: false,
+    message: '',
+    severity: 'success' as 'success' | 'error',
+  });
+
+  const showToast = (message: string, severity: 'success' | 'error' = 'success') => {
+    setToast({ open: true, message, severity });
+  };
+
   const handleLogin = async () => {
     setSignInLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
@@ -22,7 +32,7 @@ export default function LoginPage() {
     });
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
       setSignInLoading(false);
       return;
     }
@@ -41,12 +51,12 @@ export default function LoginPage() {
     });
 
     if (error) {
-      alert(error.message);
+      showToast(error.message, 'error');
       setSignUpLoading(false);
       return;
     }
 
-    alert('Signup successful. Please login.');
+    showToast('Signup successful. Please login.', 'success');
     const { data } = await supabase.auth.getUser();
     console.log(`User signed up successfully: ${data}`);
     setSignUpLoading(false);
@@ -100,17 +110,45 @@ export default function LoginPage() {
           <Box sx={{ flexGrow: 1, borderBottom: '1px solid', borderColor: 'divider' }} />
         </Box>
 
-        <Button 
-          fullWidth 
-          variant="outlined" 
+        <Button
+          fullWidth
+          variant="outlined"
           size="large"
-          onClick={handleSignup} 
+          onClick={handleSignup}
           disabled={signUpLoading || signInLoading || !email || !password}
           sx={{ height: 48, fontWeight: 600, color: 'text.primary', borderColor: 'divider' }}
         >
           {signUpLoading ? 'Creating account...' : 'Create an Account'}
         </Button>
       </Box>
+
+      {/* 🔥 Toast */}
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={4000}
+        onClose={() => setToast({ ...toast, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setToast({ ...toast, open: false })}
+          severity={toast.severity}
+          variant="filled"
+          sx={{
+            width: '100%',
+            minWidth: '300px',
+            borderRadius: '12px',
+            fontWeight: 500,
+            fontSize: '0.9rem',
+            alignItems: 'center',
+            boxShadow: '0px 8px 24px rgba(0, 0, 0, 0.12)',
+            '& .MuiAlert-icon': {
+              fontSize: '22px',
+            },
+          }}
+        >
+          {toast.message}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 }
