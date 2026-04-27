@@ -11,7 +11,11 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  const [signUpLoading, setSignUpLoading] = useState(false);
+  const [signInLoading, setSignInLoading] = useState(false);
+
   const handleLogin = async () => {
+    setSignInLoading(true);
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -19,6 +23,7 @@ export default function LoginPage() {
 
     if (error) {
       alert(error.message);
+      setSignInLoading(false);
       return;
     }
 
@@ -29,6 +34,7 @@ export default function LoginPage() {
   };
 
   const handleSignup = async () => {
+    setSignUpLoading(true);
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -36,12 +42,14 @@ export default function LoginPage() {
 
     if (error) {
       alert(error.message);
+      setSignUpLoading(false);
       return;
     }
 
     alert('Signup successful. Please login.');
     const { data } = await supabase.auth.getUser();
     console.log(`User signed up successfully: ${data}`);
+    setSignUpLoading(false);
   };
 
   return (
@@ -63,12 +71,17 @@ export default function LoginPage() {
         onChange={(e) => setPassword(e.target.value)}
       />
 
-      <Button fullWidth variant="contained" onClick={handleLogin}>
-        Login
+      <Button
+        fullWidth
+        variant="contained"
+        onClick={handleLogin}
+        disabled={signInLoading}
+      >
+        {signInLoading ? 'Logging in...' : 'Login'}
       </Button>
 
-      <Button fullWidth onClick={handleSignup}>
-        Signup
+      <Button fullWidth onClick={handleSignup} disabled={signUpLoading}>
+        {signUpLoading ? 'Signing up...' : 'Signup'}
       </Button>
     </Container>
   );

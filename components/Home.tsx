@@ -157,6 +157,7 @@ export default function Home() {
           queryClient.invalidateQueries({
             queryKey: ['collaborators', selectedNoteId],
           });
+          setOpenDialog(false);
         },
         onError: (err: any) =>
           showToast(err?.response?.data?.error || 'Failed', 'error'),
@@ -170,7 +171,10 @@ export default function Home() {
     updateCollaborator.mutate(
       { note_id: selectedNoteId, user_id: userId, role },
       {
-        onSuccess: () => showToast('Role updated'),
+        onSuccess: () => {
+          showToast('Role updated');
+          setOpenDialog(false);
+        },
         onError: () => showToast('Update failed', 'error'),
       }
     );
@@ -182,7 +186,10 @@ export default function Home() {
     removeCollaborator.mutate(
       { note_id: selectedNoteId, user_id: userId },
       {
-        onSuccess: () => showToast('Removed'),
+        onSuccess: () => {
+          showToast('Removed');
+          setOpenDialog(false);
+        },
         onError: () => showToast('Remove failed', 'error'),
       }
     );
@@ -247,6 +254,7 @@ export default function Home() {
         onClose={() => setOpenDialog(false)}
         collaborators={collaborators || []}
         loading={collabLoading}
+        adding={addCollaborator.isPending}
         onlineUsers={onlineUsers}
         email={collabEmail}
         setEmail={setCollabEmail}

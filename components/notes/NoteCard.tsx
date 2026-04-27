@@ -60,7 +60,7 @@ export default function NoteCard({
       <CardActions>
         <Button onClick={onOpen}>Open</Button>
 
-        {canEdit && <Button onClick={onEdit}>Edit</Button>}
+        {/* {canEdit && <Button onClick={onEdit}>Edit</Button>} */}
 
         {isOwner && (
           <>

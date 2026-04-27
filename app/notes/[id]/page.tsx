@@ -9,6 +9,8 @@ import {
   Box,
   Button,
   CircularProgress,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 
 import { useEffect, useRef, useState } from 'react';
@@ -54,6 +56,19 @@ export default function NotePage() {
     remote: string;
     remoteVersion: number;
   } | null>(null);
+
+  const [toast, setToast] = useState({
+    open: false,
+    message: '',
+    severity: 'success' as 'success' | 'error',
+  });
+
+  const showToast = (
+    message: string,
+    severity: 'success' | 'error' = 'success'
+  ) => {
+    setToast({ open: true, message, severity });
+  };
 
   /** -----------------------------
    * Stable refs (single source)
@@ -626,28 +641,25 @@ export default function NotePage() {
             false
           )
         }
-        onRestore={async (
-          value
-        ) => {
-          setHistoryOpen(
-            false
-          );
+        onRestore={async (value) => {
+          if (!canEdit) {
+            showToast('You do not have permission to restore versions.', 'error');
+            setHistoryOpen(false);
+            return;
+          }
 
-          setContent(
-            value
-          );
-
-          contentRef.current =
-            value;
-
-          await saveNote(
-            value,
-            versionRef.current
-          );
-
-          setStatus(
-            'Version restored'
-          );
+          try {
+            await saveNote(value, versionRef.current);
+            setContent(value);
+            contentRef.current = value;
+            setStatus('Version restored');
+            showToast('Version restored successfully');
+          } catch (err: any) {
+            showToast(err.response?.data?.error || 'Failed to restore version', 'error');
+            setStatus('Failed');
+          } finally {
+            setHistoryOpen(false);
+          }
         }}
       />
 
@@ -713,6 +725,15 @@ export default function NotePage() {
             );
         }}
       />
+
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={3000}
+        onClose={() => setToast({ ...toast, open: false })}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <Alert severity={toast.severity}>{toast.message}</Alert>
+      </Snackbar>
     </Container>
   );
 }

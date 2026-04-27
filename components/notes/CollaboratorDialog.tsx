@@ -25,6 +25,7 @@ type Props = {
   setEmail: (v: string) => void;
   role: string;
   setRole: (v: string) => void;
+  adding: boolean;
   onAdd: () => void;
   onRoleChange: (userId: string, role: string) => void;
   onRemove: (userId: string) => void;
@@ -36,6 +37,7 @@ export default function CollaboratorDialog(props: Props) {
     onClose,
     collaborators,
     loading,
+    adding,
     onlineUsers,
     email,
     setEmail,
@@ -102,12 +104,14 @@ export default function CollaboratorDialog(props: Props) {
           label="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          disabled={adding}
         />
 
         <Select
           fullWidth
           value={role}
           onChange={(e) => setRole(e.target.value)}
+          disabled={adding}
         >
           <MenuItem value="viewer">Viewer</MenuItem>
           <MenuItem value="editor">Editor</MenuItem>
@@ -116,8 +120,12 @@ export default function CollaboratorDialog(props: Props) {
 
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
-        <Button variant="contained" onClick={onAdd}>
-          Add
+        <Button
+          variant="contained"
+          onClick={onAdd}
+          disabled={adding || !email}
+        >
+          {adding ? 'Adding...' : 'Add'}
         </Button>
       </DialogActions>
     </Dialog>

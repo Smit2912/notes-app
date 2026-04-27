@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { AppBar, Toolbar, Typography, Button } from '@mui/material';
 import { useRouter } from 'next/navigation';
@@ -7,9 +8,15 @@ import { useRouter } from 'next/navigation';
 export default function Navbar({ user }: { user: any }) {
   const router = useRouter();
 
+  const [loading, setLoading] = useState(false);
   const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
+    setLoading(true);
+    try {
+      await supabase.auth.signOut();
+      router.push('/login');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -22,8 +29,8 @@ export default function Navbar({ user }: { user: any }) {
             {user?.email}
           </Typography>
 
-          <Button color="inherit" onClick={handleLogout}>
-            Logout
+          <Button color="inherit" onClick={handleLogout} disabled={loading}>
+            {loading ? 'Logging out...' : 'Logout'}
           </Button>
         </div>
       </Toolbar>
