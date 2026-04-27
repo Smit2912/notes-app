@@ -7,6 +7,7 @@ import {
   Typography,
   Button,
   Chip,
+  Box,
 } from '@mui/material';
 
 type Note = {
@@ -36,36 +37,59 @@ export default function NoteCard({
   const isOwner = note.role === 'owner';
 
   return (
-    <Card sx={{ mt: 2 }}>
-      <CardContent>
-        <Typography variant='h6'>{note.title}</Typography>
+    <Card 
+      sx={{ 
+        height: '100%', 
+        display: 'flex', 
+        flexDirection: 'column',
+        cursor: 'pointer',
+        '&:hover': {
+          borderColor: '#d1d5db',
+        }
+      }}
+      onClick={onOpen}
+    >
+      <CardContent sx={{ flexGrow: 1, p: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+          <Typography variant='h6' sx={{ fontWeight: 600, lineHeight: 1.3, color: 'text.primary', flexGrow: 1, mr: 2 }}>
+            {note.title || 'Untitled Note'}
+          </Typography>
+          <Chip
+            size='small'
+            label={note.role.toUpperCase()}
+            color={
+              note.role === 'owner'
+                ? 'primary'
+                : note.role === 'editor'
+                ? 'warning'
+                : 'default'
+            }
+            sx={{ flexShrink: 0, fontSize: '0.7rem', height: 24 }}
+          />
+        </Box>
 
-        <Typography variant='body2' sx={{ mb: 1 }}>
-          {note.content}
+        <Typography 
+          variant='body2' 
+          color="text.secondary"
+          sx={{ 
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            lineHeight: 1.6
+          }}
+        >
+          {note.content || 'No content yet...'}
         </Typography>
-
-        <Chip
-          size='small'
-          label={note.role.toUpperCase()}
-          color={
-            note.role === 'owner'
-              ? 'primary'
-              : note.role === 'editor'
-              ? 'warning'
-              : 'default'
-          }
-        />
       </CardContent>
 
-      <CardActions>
-        <Button onClick={onOpen}>Open</Button>
-
-        {/* {canEdit && <Button onClick={onEdit}>Edit</Button>} */}
-
+      <CardActions sx={{ p: 2, pt: 0, justifyContent: 'flex-end', borderTop: '1px solid transparent' }}>
         {isOwner && (
           <>
-            <Button onClick={onShare}>Share</Button>
-            <Button color='error' onClick={onDelete}>
+            <Button size="small" onClick={(e) => { e.stopPropagation(); onShare(); }} sx={{ color: 'text.secondary' }}>
+              Share
+            </Button>
+            <Button size="small" color='error' onClick={(e) => { e.stopPropagation(); onDelete(); }}>
               Delete
             </Button>
           </>

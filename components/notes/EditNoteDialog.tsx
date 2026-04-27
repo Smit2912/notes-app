@@ -48,16 +48,22 @@ export default function EditNoteDialog({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth>
-      <DialogTitle>Edit Note</DialogTitle>
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle sx={{ borderBottom: '1px solid', borderColor: 'divider', mb: 2 }}>
+        Edit Note
+      </DialogTitle>
 
-      <DialogContent>
+      <DialogContent sx={{ pt: 2 }}>
         <TextField
           fullWidth
           margin="normal"
           label="Title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          sx={{ mb: 3 }}
+          slotProps={{
+            inputLabel: { shrink: true },
+          }}
         />
 
         <TextField
@@ -65,21 +71,27 @@ export default function EditNoteDialog({
           margin="normal"
           label="Content"
           multiline
-          minRows={4}
+          minRows={6}
           value={content}
           onChange={(e) => setContent(e.target.value)}
+          slotProps={{
+            inputLabel: { shrink: true },
+          }}
         />
       </DialogContent>
 
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose} color="inherit" sx={{ color: 'text.secondary' }}>
+          Cancel
+        </Button>
 
         <Button
           variant="contained"
           onClick={handleSave}
-          disabled={loading}
+          disabled={loading || !title.trim()}
+          sx={{ minWidth: 100 }}
         >
-          {loading ? 'Saving...' : 'Save'}
+          {loading ? 'Saving...' : 'Save Changes'}
         </Button>
       </DialogActions>
     </Dialog>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { AppBar, Toolbar, Typography, Button } from '@mui/material';
+import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material';
 import { useRouter } from 'next/navigation';
 
 export default function Navbar({ user }: { user: any }) {
@@ -20,19 +20,30 @@ export default function Navbar({ user }: { user: any }) {
   };
 
   return (
-    <AppBar position="static">
-      <Toolbar style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <Typography variant="h6">Notes App</Typography>
+    <AppBar position="sticky" elevation={0} sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
+      <Toolbar sx={{ display: 'flex', justifyContent: 'space-between', maxWidth: 1200, width: '100%', mx: 'auto', px: { xs: 2, sm: 3 } }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: '-0.02em', color: 'text.primary' }}>
+          Notes App
+        </Typography>
 
-        <div>
-          <Typography variant="body2" style={{ marginRight: 10, display: 'inline' }}>
-            {user?.email}
-          </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {user?.email && (
+            <Typography variant="body2" sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'block' } }}>
+              {user.email}
+            </Typography>
+          )}
 
-          <Button color="inherit" onClick={handleLogout} disabled={loading}>
+          <Button 
+            variant="outlined" 
+            size="small"
+            color="inherit" 
+            onClick={handleLogout} 
+            disabled={loading}
+            sx={{ color: 'text.primary', borderColor: 'divider' }}
+          >
             {loading ? 'Logging out...' : 'Logout'}
           </Button>
-        </div>
+        </Box>
       </Toolbar>
     </AppBar>
   );

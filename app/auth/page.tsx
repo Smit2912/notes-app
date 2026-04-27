@@ -3,6 +3,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
+import { Container, Box, Typography, TextField, Button } from '@mui/material';
 
 export default function AuthPage() {
 
@@ -53,37 +54,71 @@ export default function AuthPage() {
   };
 
   return (
-    <div style={{ padding: 20 }}>
-      <h1>Auth</h1>
+    <Container maxWidth="sm" sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box sx={{ width: '100%', p: { xs: 4, md: 6 }, bgcolor: 'background.paper', borderRadius: 3, border: '1px solid', borderColor: 'divider', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05), 0 4px 6px -2px rgba(0,0,0,0.02)' }}>
+        <Box sx={{ mb: 4, textAlign: 'center' }}>
+          <Typography variant="h4" sx={{ fontWeight: 800, letterSpacing: '-0.02em', mb: 1 }}>
+            Auth Actions
+          </Typography>
+        </Box>
 
-      <input
-        placeholder="Email"
-        onChange={(e) => setEmail(e.target.value)}
-        disabled={loading}
-      />
+        <TextField
+          label="Email"
+          fullWidth
+          margin="normal"
+          onChange={(e) => setEmail(e.target.value)}
+          disabled={loading}
+          sx={{ mb: 2 }}
+        />
 
-      <br />
-      <br />
+        <TextField
+          label="Password"
+          type="password"
+          fullWidth
+          margin="normal"
+          onChange={(e) => setPassword(e.target.value)}
+          disabled={loading}
+          sx={{ mb: 3 }}
+        />
 
-      <input
-        type="password"
-        placeholder="Password"
-        onChange={(e) => setPassword(e.target.value)}
-        disabled={loading}
-      />
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Button
+            fullWidth
+            variant="contained"
+            size="large"
+            onClick={signIn}
+            disabled={loading || !email || !password}
+            sx={{ height: 48, fontWeight: 600 }}
+          >
+            {loading ? 'Logging in...' : 'Login'}
+          </Button>
 
-      <br />
-      <br />
+          <Button 
+            fullWidth 
+            variant="outlined" 
+            size="large"
+            onClick={signUp} 
+            disabled={loading || !email || !password}
+            sx={{ height: 48, fontWeight: 600 }}
+          >
+            {loading ? 'Processing...' : 'Sign Up'}
+          </Button>
 
-      <button onClick={signUp} className="mr-4" disabled={loading}>
-        {loading ? 'Processing...' : 'Sign Up'}
-      </button>
-      <button onClick={signIn} className="mr-4" disabled={loading}>
-        {loading ? 'Logging in...' : 'Login'}
-      </button>
-      <button onClick={handleLogout} disabled={loading}>
-        {loading ? 'Logging out...' : 'Logout'}
-      </button>
-    </div>
+          <Box sx={{ display: 'flex', alignItems: 'center', my: 1 }}>
+            <Box sx={{ flexGrow: 1, borderBottom: '1px solid', borderColor: 'divider' }} />
+          </Box>
+
+          <Button 
+            fullWidth 
+            variant="text" 
+            color="error"
+            onClick={handleLogout} 
+            disabled={loading}
+          >
+            {loading ? 'Logging out...' : 'Logout'}
+          </Button>
+        </Box>
+      </Box>
+    </Container>
   );
 }

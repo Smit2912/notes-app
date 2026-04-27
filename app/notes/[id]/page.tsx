@@ -424,117 +424,67 @@ export default function NotePage() {
    * Render
    * ----------------------------- */
   return (
-    <Container
-      maxWidth="md"
-      sx={{ mt: 5 }}
-    >
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent:
-            'space-between',
-          alignItems:
-            'flex-start',
-          gap: 2,
-          mb: 3,
-        }}
-      >
-        <Box>
-          <Typography variant="h4">
+    <Container maxWidth="md" sx={{ py: { xs: 4, md: 6 } }}>
+      <Box sx={{ mb: 4 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
+          <Typography variant="h3" sx={{ fontWeight: 800, letterSpacing: '-0.03em', color: 'text.primary' }}>
             {data.title}
           </Typography>
 
-          <Typography
-            variant="body2"
-            sx={{ mt: 1 }}
-          >
-            {
-              onlineUsers.length
-            }{' '}
-            online
-          </Typography>
-
-          <Box
-            sx={{
-              display: 'flex',
-              gap: 1,
-              flexWrap:
-                'wrap',
-              mt: 1,
-            }}
-          >
-            {onlineUsers.map(
-              (u) => (
-                <Chip
-                  key={
-                    u.user_id
-                  }
-                  label={
-                    u.email
-                  }
-                  size="small"
-                  color="success"
-                />
-              )
-            )}
+          <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Chip
+              label={data.role.toUpperCase()}
+              size="small"
+              variant={data.role === 'owner' ? 'filled' : 'outlined'}
+              color={data.role === 'owner' ? 'primary' : data.role === 'editor' ? 'warning' : 'default'}
+              sx={{ fontWeight: 600, fontSize: '0.7rem', height: 24 }}
+            />
+            <Button
+              variant="outlined"
+              size="small"
+              color="inherit"
+              onClick={() => setHistoryOpen(true)}
+              sx={{ color: 'text.secondary', borderColor: 'divider' }}
+            >
+              History
+            </Button>
           </Box>
         </Box>
 
-        <Box
-          sx={{
-            display: 'flex',
-            gap: 1,
-            alignItems:
-              'center',
-          }}
-        >
-          <Button
-            variant="outlined"
-            size="small"
-            onClick={() =>
-              setHistoryOpen(
-                true
-              )
-            }
-          >
-            History
-          </Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2, borderBottom: '1px solid', borderColor: 'divider', pb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: status === 'Synced' || status === 'Saved' ? 'success.main' : status === 'Typing...' ? 'warning.main' : 'error.main' }} />
+              <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 500 }}>
+                {status}
+              </Typography>
+            </Box>
 
-          <Chip
-            label={data.role.toUpperCase()}
-            color={
-              data.role ===
-                'owner'
-                ? 'primary'
-                : data.role ===
-                  'editor'
-                  ? 'warning'
-                  : 'default'
-            }
-          />
+            {typingUsers.length > 0 && (
+              <Typography variant="body2" color="primary" sx={{ fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <Box component="span" sx={{ display: 'inline-block', width: 4, height: 4, borderRadius: '50%', bgcolor: 'primary.main', animation: 'pulse 1.5s infinite' }} />
+                {typingUsers.length === 1 ? `${typingUsers[0].email} is typing...` : `${typingUsers.length} people are typing...`}
+              </Typography>
+            )}
+          </Box>
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {onlineUsers.length > 0 && (
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'success.main', mr: 1, position: 'relative', '&::after': { content: '""', position: 'absolute', top: -3, left: -3, right: -3, bottom: -3, borderRadius: '50%', border: '1px solid', borderColor: 'success.main', opacity: 0.5, animation: 'pulse 2s infinite' } }} />
+                <Typography variant="caption" sx={{ color: 'text.secondary', mr: 1, fontWeight: 500 }}>
+                  {onlineUsers.length} online:
+                </Typography>
+              </Box>
+            )}
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
+              {onlineUsers.map((u) => (
+                <Chip key={u.user_id} label={u.email.split('@')[0]} size="small" variant="outlined" sx={{ height: 20, fontSize: '0.65rem', borderColor: 'success.main', color: 'success.dark', bgcolor: '#ecfdf5' }} />
+              ))}
+            </Box>
+          </Box>
         </Box>
       </Box>
-
-      <Typography
-        variant="body2"
-        sx={{ mb: 1 }}
-      >
-        {status}
-      </Typography>
-
-      {typingUsers.length >
-        0 && (
-          <Typography
-            variant="body2"
-            color="primary"
-            sx={{ mb: 1 }}
-          >
-            {typingUsers.length ===
-              1
-              ? `${typingUsers[0].email} is typing...`
-              : `${typingUsers.length} people are typing...`}
-          </Typography>
-        )}
 
       <ConflictResolutionDialog
         open={
@@ -666,63 +616,55 @@ export default function NotePage() {
       <TextField
         fullWidth
         multiline
-        minRows={18}
+        minRows={20}
+        placeholder={canEdit ? "Start writing..." : "This note is empty."}
         value={content}
         disabled={!canEdit || !!pendingRemote}
-        onChange={(e) => {
-          const value =
-            e.target.value;
-
-          setContent(
-            value
-          );
-
-          contentRef.current =
-            value;
-
-          setStatus(
-            'Typing...'
-          );
-
-          localTypingRef.current =
-            true;
-
-          if (
-            typingTimerRef.current
-          ) {
-            clearTimeout(
-              typingTimerRef.current
-            );
+        variant="standard"
+        slotProps={{
+          input: {
+            disableUnderline: true,
+            sx: {
+              fontSize: '1.1rem',
+              lineHeight: 1.7,
+              color: 'text.primary',
+              fontFamily: 'var(--font-geist-sans), sans-serif',
+              p: 0,
+              '&.Mui-disabled': {
+                WebkitTextFillColor: 'inherit',
+                opacity: 0.7,
+              }
+            }
           }
+        }}
+        sx={{
+          '& .MuiInputBase-root': {
+            p: 2,
+            bgcolor: 'transparent',
+          }
+        }}
+        onChange={(e) => {
+          const value = e.target.value;
+          setContent(value);
+          contentRef.current = value;
+          setStatus('Typing...');
+          localTypingRef.current = true;
 
-          typingTimerRef.current =
-            setTimeout(
-              () => {
-                localTypingRef.current =
-                  false;
-              },
-              1200
-            );
+          if (typingTimerRef.current) {
+            clearTimeout(typingTimerRef.current);
+          }
+          typingTimerRef.current = setTimeout(() => {
+            localTypingRef.current = false;
+          }, 1200);
 
           triggerTyping();
 
-          if (
-            draftTimerRef.current
-          ) {
-            clearTimeout(
-              draftTimerRef.current
-            );
+          if (draftTimerRef.current) {
+            clearTimeout(draftTimerRef.current);
           }
-
-          draftTimerRef.current =
-            setTimeout(
-              () => {
-                sendDraft(
-                  value
-                );
-              },
-              60
-            );
+          draftTimerRef.current = setTimeout(() => {
+            sendDraft(value);
+          }, 60);
         }}
       />
 

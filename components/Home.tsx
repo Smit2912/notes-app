@@ -14,6 +14,8 @@ import {
 } from '@/hooks/useCollaborators';
 
 import { useState } from 'react';
+import Image from 'next/image';
+import WorkingTogetherSvg from '../assets/undraw_working-together_r43a.svg';
 
 import {
   Container,
@@ -22,6 +24,8 @@ import {
   CardContent,
   Snackbar,
   Alert,
+  Box,
+  Grid,
 } from '@mui/material';
 import { Skeleton } from '@mui/material';
 
@@ -41,13 +45,13 @@ export default function Home() {
   // const { user } = useAuth();
   // useRealtimeNotes(user?.id);
 
-  const queryClient = useQueryClient(); 
+  const queryClient = useQueryClient();
 
-  
+
   const { user, loading } = useAuth();
 
   useRealtimeNotes(!loading ? user : null);
-  
+
   const router = useRouter();
 
   const { data, isLoading, error } = useGetNotes();
@@ -199,54 +203,88 @@ export default function Home() {
 
   if (isLoading) {
     return (
-      <Container>
-        <Typography variant='h4' gutterBottom>
+      <Container maxWidth="lg" sx={{ py: { xs: 4, md: 8 } }}>
+        <Typography variant='h3' gutterBottom sx={{ mb: 4 }}>
           Notes Dashboard
         </Typography>
 
-        {[1, 2, 3].map((i) => (
-          <Card key={i} sx={{ mt: 2 }}>
-            <CardContent>
-              <Skeleton variant='text' height={30} width='40%' />
-              <Skeleton variant='text' height={20} width='80%' />
-            </CardContent>
-          </Card>
-        ))}
+        <Grid container spacing={3}>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={i}>
+              <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Skeleton variant='text' height={40} width='60%' sx={{ mb: 1 }} />
+                  <Skeleton variant='text' height={20} width='100%' />
+                  <Skeleton variant='text' height={20} width='80%' />
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
       </Container>
     );
   }
   if (error) return <p>{error.message}</p>;
 
   return (
-    <Container>
-      <Typography variant='h4' gutterBottom>
-        Notes Dashboard
-      </Typography>
-
-      <CreateNoteForm
-        loading={createNote.isPending}
-        onCreate={({ title, content }) =>
-          createNote.mutate(
-            { title, content },
-            {
-              onSuccess: () => showToast('Note created'),
-              onError: () => showToast('Create failed', 'error'),
-            }
-          )
-        }
-      />
+    <Container maxWidth="lg" sx={{ py: { xs: 4, md: 8 } }}>
+      <Box sx={{ 
+        mb: 8, 
+        display: 'flex', 
+        flexDirection: { xs: 'column-reverse', md: 'row' }, 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        gap: { xs: 4, md: 8 } 
+      }}>
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3, width: '100%' }}>
+          <Box>
+            <Typography variant='h3' sx={{ mb: 1, fontWeight: 800, letterSpacing: '-0.02em' }}>
+              Notes Dashboard
+            </Typography>
+            <Typography variant="body1" color="text.secondary" sx={{ fontSize: '1.1rem' }}>
+              Manage and collaborate on your notes in real-time.
+            </Typography>
+          </Box>
+          <Box sx={{ width: '100%', maxWidth: 500 }}>
+            <CreateNoteForm
+              loading={createNote.isPending}
+              onCreate={({ title, content }) =>
+                createNote.mutate(
+                  { title, content },
+                  {
+                    onSuccess: () => showToast('Note created'),
+                    onError: () => showToast('Create failed', 'error'),
+                  }
+                )
+              }
+            />
+          </Box>
+        </Box>
+        
+        <Box sx={{ flex: 1, display: 'flex', justifyContent: 'center', width: '100%', maxWidth: { xs: 400, md: 500 } }}>
+          <Image 
+            src={WorkingTogetherSvg} 
+            alt="Working together" 
+            style={{ width: '100%', height: 'auto' }}
+            priority
+          />
+        </Box>
+      </Box>
 
       {/* Notes */}
-      {data?.data?.map((note: any) => (
-        <NoteCard
-          key={note.id}
-          note={note}
-          onOpen={() => router.push(`/notes/${note.id}`)}
-          onEdit={() => startEdit(note)}
-          onDelete={() => handleDelete(note.id)}
-          onShare={() => openCollaborators(note.id)}
-        />
-      ))}
+      <Grid container spacing={3}>
+        {data?.data?.map((note: any) => (
+          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={note.id}>
+            <NoteCard
+              note={note}
+              onOpen={() => router.push(`/notes/${note.id}`)}
+              onEdit={() => startEdit(note)}
+              onDelete={() => handleDelete(note.id)}
+              onShare={() => openCollaborators(note.id)}
+            />
+          </Grid>
+        ))}
+      </Grid>
 
       {/* 🔥 Dialog */}
       <CollaboratorDialog
