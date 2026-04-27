@@ -8,7 +8,6 @@ import {
   Chip,
   Box,
   Button,
-  CircularProgress,
   Snackbar,
   Alert,
 } from '@mui/material';
@@ -26,6 +25,7 @@ import { useRealtimeSingleNote } from '@/hooks/useRealtimeSingleNote';
 
 import ConflictResolutionDialog from '@/components/notes/ConflictResolutionDialog';
 import HistoryDrawer from '@/components/notes/HistoryDrawer';
+import Progress from '@/components/Progress';
 
 export default function NotePage() {
   const params = useParams();
@@ -407,7 +407,7 @@ export default function NotePage() {
   if (authLoading || isLoading) {
     return (
       <Container sx={{ mt: 5 }}>
-        <CircularProgress />
+        <Progress />
       </Container>
     );
   }
@@ -670,11 +670,31 @@ export default function NotePage() {
 
       <Snackbar
         open={toast.open}
-        autoHideDuration={3000}
+        autoHideDuration={4000} // Slightly longer for readability
         onClose={() => setToast({ ...toast, open: false })}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
       >
-        <Alert severity={toast.severity}>{toast.message}</Alert>
+        <Alert
+          onClose={() => setToast({ ...toast, open: false })}
+          severity={toast.severity}
+          variant="filled" // "filled" provides better contrast on white backgrounds
+          sx={{
+            width: '100%',
+            minWidth: '300px',
+            borderRadius: '12px', // Rounded corners for a modern feel
+            fontWeight: 500,
+            fontSize: '0.9rem',
+            alignItems: 'center',
+            // Adding a sophisticated shadow for depth
+            boxShadow: '0px 8px 24px rgba(0, 0, 0, 0.12)',
+            // Customizing icons and colors slightly
+            '& .MuiAlert-icon': {
+              fontSize: '22px',
+            },
+          }}
+        >
+          {toast.message}
+        </Alert>
       </Snackbar>
     </Container>
   );

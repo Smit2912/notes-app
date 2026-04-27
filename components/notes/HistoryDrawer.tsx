@@ -6,7 +6,6 @@ import {
   Typography,
   IconButton,
   Divider,
-  CircularProgress,
   Button,
   Chip,
 } from '@mui/material';
@@ -14,6 +13,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 
 import { useNoteHistory } from '@/hooks/useNoteHistory';
+import Progress from '../Progress';
 
 type Props = {
   open: boolean;
@@ -48,7 +48,7 @@ export default function HistoryDrawer({
         <Box sx={{ p: 3, flexGrow: 1, overflowY: 'auto', bgcolor: '#fafafa' }}>
           {isLoading && (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
-              <CircularProgress size={32} />
+              <Progress />
             </Box>
           )}
 

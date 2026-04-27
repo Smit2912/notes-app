@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import Navbar from '@/components/Navbar';
+import Progress from '@/components/Progress';
 
 export default function ProtectedLayout({
   children,
@@ -19,7 +20,7 @@ export default function ProtectedLayout({
     }
   }, [user, loading]);
 
-  if (loading || !user) return <p>Loading...</p>;
+  if (loading || !user) return <Progress />;
 
   return (
     <>

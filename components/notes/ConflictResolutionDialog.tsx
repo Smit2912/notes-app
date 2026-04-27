@@ -89,7 +89,7 @@ export default function ConflictResolutionDialog({
           <Box
             sx={{
               bgcolor: 'info.light',
-              color: 'info.dark',
+              color: 'white',
               p: 2,
               borderRadius: 2,
               minHeight: 120,
